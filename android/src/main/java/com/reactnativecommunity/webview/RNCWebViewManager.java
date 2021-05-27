@@ -9,8 +9,13 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.media.MediaScannerConnection;
+import android.content.Intent;
 import android.Manifest;
 import android.net.http.SslError;
+import android.app.PendingIntent;
+import android.app.Notification;
+import android.app.NotificationManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -44,6 +49,7 @@ import android.widget.FrameLayout;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.core.content.ContextCompat;
+import androidx.core.app.NotificationCompat;
 import androidx.core.util.Pair;
 
 import com.facebook.common.logging.FLog;
@@ -86,11 +92,13 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.UnsupportedEncodingException;
+import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -210,36 +218,88 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
         webView.setIgnoreErrFailedForThisURL(url);
 
         RNCWebViewModule module = getModule(reactContext);
-
-        DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-
-        String fileName = URLUtil.guessFileName(url, contentDisposition, mimetype);
-        String downloadMessage = "Downloading " + fileName;
-
-        //Attempt to add cookie, if it exists
-        URL urlObj = null;
         try {
-          urlObj = new URL(url);
-          String baseUrl = urlObj.getProtocol() + "://" + urlObj.getHost();
-          String cookie = CookieManager.getInstance().getCookie(baseUrl);
-          request.addRequestHeader("Cookie", cookie);
-        } catch (MalformedURLException e) {
-          System.out.println("Error getting cookie for DownloadManager: " + e.toString());
-          e.printStackTrace();
-        }
+          if (url.startsWith("data:")) {
+            File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            String filetype = url.substring(url.indexOf("/") + 1, url.indexOf(";"));
+            String filenameB64 = System.currentTimeMillis() + "." + filetype;
+            File file = new File(path, filenameB64);
+            try {
+              if(!path.exists())
+                path.mkdirs();
+              if(!file.exists())
+                file.createNewFile();
+  
+              String base64EncodedString = url.substring(url.indexOf(",") + 1);
+              byte[] decodedBytes = Base64.getDecoder().decode(base64EncodedString);
+              OutputStream os = new FileOutputStream(file);
+              os.write(decodedBytes);
+              os.close();
+  
+              //Tell the media scanner about the new file so that it is immediately available to the user.
+              MediaScannerConnection.scanFile(reactContext,
+                new String[]{file.toString()}, null,
+                new MediaScannerConnection.OnScanCompletedListener() {
+                  public void onScanCompleted(String path, Uri uri) {
+                      Log.i("ExternalStorage", "Scanned " + path + ":");
+                      Log.i("ExternalStorage", "-> uri=" + uri);
+                  }
+                }
+              );
+  
+              //Set notification after download complete and add "click to view" action to that
+              String mimeType = url.substring(url.indexOf(":") + 1, url.indexOf("/"));
+              Intent intent = new Intent();
+              intent.setAction(android.content.Intent.ACTION_VIEW);
+              intent.setDataAndType(Uri.fromFile(file), mimeType);
+              PendingIntent pIntent = PendingIntent.getActivity(reactContext, 0, intent, 0);
+  
+              Notification notification = new NotificationCompat.Builder(reactContext, "com.raenaapp.general")
+                .setContentText("Downloading File")
+                .setContentTitle(filenameB64)
+                .setContentIntent(pIntent)
+                .build();
+  
+              notification.flags |= Notification.FLAG_AUTO_CANCEL;
+              int notificationId = 85851;
+              NotificationManager notificationManager = (NotificationManager) reactContext.getCurrentActivity().getSystemService(Context.NOTIFICATION_SERVICE);
+              notificationManager.notify(notificationId, notification);
+            } catch (IOException e) {
+                Log.d("ExternalStorage", "Error writing " + file, e);
+            }
+          }
+          DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
 
-        //Finish setting up request
-        request.addRequestHeader("User-Agent", userAgent);
-        request.setTitle(fileName);
-        request.setDescription(downloadMessage);
-        request.allowScanningByMediaScanner();
-        request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
+          String fileName = URLUtil.guessFileName(url, contentDisposition, mimetype);
+          String downloadMessage = "Downloading " + fileName;
 
-        module.setDownloadRequest(request);
+          //Attempt to add cookie, if it exists
+          URL urlObj = null;
+          try {
+            urlObj = new URL(url);
+            String baseUrl = urlObj.getProtocol() + "://" + urlObj.getHost();
+            String cookie = CookieManager.getInstance().getCookie(baseUrl);
+            request.addRequestHeader("Cookie", cookie);
+          } catch (MalformedURLException e) {
+            System.out.println("Error getting cookie for DownloadManager: " + e.toString());
+            e.printStackTrace();
+          }
 
-        if (module.grantFileDownloaderPermissions()) {
-          module.downloadFile();
+          //Finish setting up request
+          request.addRequestHeader("User-Agent", userAgent);
+          request.setTitle(fileName);
+          request.setDescription(downloadMessage);
+          request.allowScanningByMediaScanner();
+          request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+          request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
+
+          module.setDownloadRequest(request);
+
+          if (module.grantFileDownloaderPermissions()) {
+            module.downloadFile();
+          }
+        } catch (Exception e) {
+          Log.d("Webview Module", "Ran into an error: " + e.toString());
         }
       }
     });
