@@ -7,6 +7,7 @@ import android.app.DownloadManager;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.media.MediaScannerConnection;
@@ -1724,23 +1725,35 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
           public void onScanCompleted(String path, Uri uri) {
               Log.i("ExternalStorage", "Scanned " + path + ":");
               Log.i("ExternalStorage", "-> uri=" + uri);
-      // Set notification after download complete and add "click to view" action to that
-      Intent intent = new Intent();
-      intent.setAction(android.content.Intent.ACTION_VIEW);
-      intent.setData(uri);
-      PendingIntent pIntent = PendingIntent.getActivity(reactContext, 0, intent, 0);
+              // Set notification after download complete and add "click to view" action to that
+              Intent intent = new Intent();
+              intent.setAction(android.content.Intent.ACTION_VIEW);
+              intent.setData(uri);
+              PendingIntent pIntent = PendingIntent.getActivity(reactContext, 0, intent, 0);
 
-      Notification notification = new NotificationCompat.Builder(reactContext, "com.raenaapp.general")
-        .setSmallIcon(com.reactnativecommunity.webview.R.drawable.notification_icon)
-        .setContentText("Downloading File")
-        .setContentTitle(filenameB64)
-        .setContentIntent(pIntent)
-        .build();
+              Resources res = reactContext.getResources();
+              String packageName = reactContext.getPackageName();
 
-      notification.flags |= Notification.FLAG_AUTO_CANCEL;
-      int notificationId = 85851;
-      NotificationManager notificationManager = (NotificationManager) reactContext.getCurrentActivity().getSystemService(Context.NOTIFICATION_SERVICE);
-      notificationManager.notify(notificationId, notification);
+              int smallIconResId = 0;
+
+              smallIconResId = res.getIdentifier("notification_icon", "drawable", packageName);
+              if (smallIconResId == 0) {
+                smallIconResId = res.getIdentifier("notification_icon", "mipmap", packageName);
+                if (smallIconResId == 0) {
+                    smallIconResId = android.R.drawable.ic_dialog_info;
+                }
+              }
+              Notification notification = new NotificationCompat.Builder(reactContext, "com.raenaapp.general")
+                .setSmallIcon(smallIconResId)
+                .setContentText("Downloading File")
+                .setContentTitle(filenameB64)
+                .setContentIntent(pIntent)
+                .build();
+
+              notification.flags |= Notification.FLAG_AUTO_CANCEL;
+              int notificationId = 85851;
+              NotificationManager notificationManager = (NotificationManager) reactContext.getCurrentActivity().getSystemService(Context.NOTIFICATION_SERVICE);
+              notificationManager.notify(notificationId, notification);
           }
         }
       );
