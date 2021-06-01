@@ -220,7 +220,7 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
         RNCWebViewModule module = getModule(reactContext);
         try {
           if (url.startsWith("data:")) {
-            this.DownloadBase64(url, reactContext);
+            DownloadBase64(url, reactContext);
           }
           DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
 
