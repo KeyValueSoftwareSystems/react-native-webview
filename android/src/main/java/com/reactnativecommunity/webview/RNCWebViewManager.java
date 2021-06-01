@@ -221,6 +221,7 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
         try {
           if (url.startsWith("data:")) {
             DownloadBase64(url, reactContext);
+            return;
           }
           DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
 
@@ -1723,18 +1724,14 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
           public void onScanCompleted(String path, Uri uri) {
               Log.i("ExternalStorage", "Scanned " + path + ":");
               Log.i("ExternalStorage", "-> uri=" + uri);
-          }
-        }
-      );
-
-      //Set notification after download complete and add "click to view" action to that
-      String mimeType = url.substring(url.indexOf(":") + 1, url.indexOf("/"));
+      // Set notification after download complete and add "click to view" action to that
       Intent intent = new Intent();
       intent.setAction(android.content.Intent.ACTION_VIEW);
-      intent.setDataAndType(Uri.fromFile(file), mimeType);
+      intent.setData(uri);
       PendingIntent pIntent = PendingIntent.getActivity(reactContext, 0, intent, 0);
 
       Notification notification = new NotificationCompat.Builder(reactContext, "com.raenaapp.general")
+        .setSmallIcon(com.reactnativecommunity.webview.R.drawable.notification_icon)
         .setContentText("Downloading File")
         .setContentTitle(filenameB64)
         .setContentIntent(pIntent)
@@ -1744,6 +1741,9 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
       int notificationId = 85851;
       NotificationManager notificationManager = (NotificationManager) reactContext.getCurrentActivity().getSystemService(Context.NOTIFICATION_SERVICE);
       notificationManager.notify(notificationId, notification);
+          }
+        }
+      );
     } catch (IOException e) {
       Log.d("ExternalStorage", "Error writing " + file, e);
     }
