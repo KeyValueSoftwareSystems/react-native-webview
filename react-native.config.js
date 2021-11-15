@@ -54,13 +54,9 @@ module.exports.dependency = {
       solutionFile: 'ReactNativeWebView.sln',
       projects: [
         {
-          projectFile: 'ReactNativeWebView\\ReactNativeWebView.vcxproj',
+          projectFile: 'ReactNativeWebView/ReactNativeWebView.vcxproj',
           directDependency: true,
         },
-        {
-          projectFile: 'WebViewBridgeComponent\\WebViewBridgeComponent.vcxproj',
-          directDependency: false,
-        }
       ],
     },
   },
